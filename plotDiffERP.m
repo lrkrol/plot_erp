@@ -44,6 +44,10 @@
 %                       Team PhyPA, Department of Biological Psychology and
 %                       Neuroergonomics, Berlin Institute of Technology
 
+% 2016-11-07 lrk
+%   - Added number of averaged epochs (n=...) to legend
+%   - Changed figure scaling to better fit window
+%   - Fixed xscalepos positioning bug due to rounding error
 % 2016-01-21 lrk
 %   - Improved automatic y scaling for values below 1
 %   - Changed the y scale label format to %+1.1d instead of %+d
@@ -72,14 +76,18 @@ if (~exist('smoothing', 'var')); smoothing = 'on'; end
 
 % averaging over epochs
 erp1 = [];
+erp1n = 0;
 for n = 1:length(epochs1)
     erp1 = [erp1; mean(epochs1{n}.data(channel,:,:), 3)];
+    erp1n = erp1n + size(epochs1{n}.data, 3);
 end
 erp1 = mean(erp1, 1);
 
 erp2 = [];
+erp2n = 0;
 for n = 1:length(epochs2)
     erp2 = [erp2; mean(epochs2{n}.data(channel,:,:), 3)];
+    erp2n = erp2n + size(epochs2{n}.data, 3);
 end
 erp2 = mean(erp2, 1);
 
@@ -160,7 +168,7 @@ if xscalepos == 1 || xscalepos == 5
         textposy = textposy * -1;
     end
 elseif xscalepos == 2 || xscalepos == 6
-    xposticks = xticks(xticks < 0);
+    xposticks = xticks(xticks < 0.0001);    % taking rounding errors into account
     xpos1 = xposticks(end-1);
     xpos2 = xposticks(end);
     if xscalepos == 2
@@ -168,7 +176,7 @@ elseif xscalepos == 2 || xscalepos == 6
         textposy = textposy * -1;
     end
 elseif xscalepos == 3 || xscalepos == 7
-    xposticks = xticks(xticks > 0);
+    xposticks = xticks(xticks > 0.0001);
     xpos1 = xposticks(1);
     xpos2 = xposticks(2);
     if xscalepos == 3
@@ -214,11 +222,12 @@ else
             align = 'right';
     end
 
-    legend = text(double(x), double(yticksize * -1.35 * vscale^1.35), ['\color[rgb]{' num2str(colors(1,:)) '}' name1 char(10) '\color[rgb]{' num2str(colors(2,:)) '}' name2 char(10) '\color[rgb]{' num2str(colors(3,:)) '}difference'] , 'Color', colors(1,:), 'HorizontalAlignment', align, 'VerticalAlignment', 'top');
+    legend = text(double(x), double(yticksize * -1.35 * vscale^1.35), ['\color[rgb]{' num2str(colors(1,:)) '}' name1 ' (n=' num2str(erp1n) ')' char(10) '\color[rgb]{' num2str(colors(2,:)) '}' name2 ' (n=' num2str(erp2n) ')' char(10) '\color[rgb]{' num2str(colors(3,:)) '}difference'] , 'Color', colors(1,:), 'HorizontalAlignment', align, 'VerticalAlignment', 'top');
 end
 
-% setting figure drawing order, removing original axes
+% setting figure drawing order, removing original axes, scaling figure to fill window
 set(gca, 'Children', [curve1, curve2, curved, xaxis, yaxis, labelyp, labelyn, xaxislabel, labelx, chanlabel, legend]);
 set(gca, 'Visible', 'off');
+set(gca, 'Position', [0 .05 1 .90]);
 
 end

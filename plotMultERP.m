@@ -46,6 +46,10 @@
 %                       Team PhyPA, Department of Biological Psychology and
 %                       Neuroergonomics, Berlin Institute of Technology
 
+% 2016-11-07 lrk
+%   - Added number of averaged epochs (n=...) to legend
+%   - Changed figure scaling to better fit window
+%   - Fixed xscalepos positioning bug due to rounding error
 % 2016-01-21 lrk
 %   - Improved automatic y scaling for values below 1
 %   - Changed the y scale label format to %+1.1d instead of %+d
@@ -66,12 +70,16 @@ if (~exist('smoothing', 'var')); smoothing = 'on'; end
 
 % getting mean ERPs
 erps = [];
+numepochs = [];
 for n = 1:length(epochs)
     conditionerp = [];
+    conditionnumepochs = 0;
     for m = 1:length(epochs{n})
         conditionerp = [conditionerp; mean(epochs{n}{m}.data(channel,:,:), 3)];
+        conditionnumepochs = conditionnumepochs + size(epochs{n}{m}.data, 3);
     end
     erps = [erps; mean(conditionerp, 1)];
+    numepochs = [numepochs, conditionnumepochs];
 end
 
 % applying delay correction
@@ -148,7 +156,7 @@ if xscalepos == 1 || xscalepos == 5
         textposy = textposy * -1;
     end
 elseif xscalepos == 2 || xscalepos == 6
-    xposticks = xticks(xticks < 0);
+    xposticks = xticks(xticks < 0.0001);    % taking rounding errors into account
     xpos1 = xposticks(end-1);
     xpos2 = xposticks(end);
     if xscalepos == 2
@@ -156,7 +164,7 @@ elseif xscalepos == 2 || xscalepos == 6
         textposy = textposy * -1;
     end
 elseif xscalepos == 3 || xscalepos == 7
-    xposticks = xticks(xticks > 0);
+    xposticks = xticks(xticks > 0.0001);
     xpos1 = xposticks(1);
     xpos2 = xposticks(2);
     if xscalepos == 3
@@ -204,7 +212,7 @@ else
     
     legendtext = [];
     for i = 1:size(erps, 1)
-        legendtext = [legendtext, '\color[rgb]{' num2str(colors(i,:)) '}' names{i}];
+        legendtext = [legendtext, '\color[rgb]{' num2str(colors(i,:)) '}' names{i} ' (n=' num2str(numepochs(i)) ')'];
         if i < size(erps, 1)
             legendtext = [legendtext char(10)];
         end
@@ -212,8 +220,9 @@ else
     legend = text(double(x), double(yticksize * -1.35 * vscale^1.35), legendtext, 'HorizontalAlignment', align, 'VerticalAlignment', 'top');
 end
 
-% setting figure drawing order, removing original axes
+% setting figure drawing order, removing original axes, scaling figure to fill window
 set(gca, 'Children', [curves, xaxis, yaxis, labelyp, labelyn, xaxislabel, labelx, chanlabel, legend]);
 set(gca, 'Visible', 'off');
+set(gca, 'Position', [0 .05 1 .90]);
 
 end
