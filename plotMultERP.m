@@ -4,10 +4,10 @@
 %       channel.
 %
 % In:
-%       epochs - 1-by-n cell containing 1-by-m cells of epoched EEG set(s)
-%                to average and plot. the length of epochs determines the
-%                amount of ERPs plotted, the length of epochs{1} the amount of
-%                sets merged together and averaged for the first ERP curve.
+%       epochs - 1-by-n cell containing 1-by-m cells or structs of epoched 
+%                EEG set(s) to average and plot. the length of epochs determines 
+%                the amount of ERPs plotted, the length of epochs{1} the amount 
+%                of sets merged together and averaged for the first ERP curve.
 %       channel - label of channel to plot: note that EEG sets must have
 %                 labels for the channel positions.
 %
@@ -18,6 +18,17 @@
 %                 their mean. default 'auto' selects 'within' when when
 %                 more than one dataset is provided for epochs{1}, 'across'
 %                 otherwise.
+%       plotstd - whether or not to plot standard errors of the mean for the 
+%                 two average curves. 
+%                 'fill' - plots a filled, semi-transparent area. note:
+%                          this interferes with MATLAB's ability to plot
+%                          smooth curves. when smoothing is off, these will
+%                          not be semi-transparent to maintain vector
+%                          compatibility.
+%                 'lines' - plots upper and lower boundary curves. this
+%                           option does not use transparency, thus does not
+%                           interfere with MATLAB's graphical abilities.
+%                 'none' - does not plot standard deviations (default).
 %       labels - cell of legend entries for the ERPs. (default: no legend)
 %       colors - array of colors for the ERPs. (default hsv(length(epochs)))
 %       delaycorrection - delay to visually correct for in seconds, i.e.
@@ -61,6 +72,9 @@
 %                       Team PhyPA, Biological Psychology and Neuroergonomics,
 %                       Berlin Institute of Technology
 
+% 2017-03-13 lrk
+%   - Added function to plot standard errors of the mean (plotstd)
+%   - Script now accepts cells of structs as well as of cells
 % 2017-01-13 lrk
 %   - Switched to inputParser to parse arguments
 %   - Channel is now given as label, not as index, for consistency when
@@ -89,6 +103,7 @@ addRequired(p, 'epochs', @iscell);
 addRequired(p, 'channel', @ischar);
 
 addParamValue(p, 'avgmode', 'auto', @(x) any(validatestring(x,{'auto', 'within', 'across'})));
+addParamValue(p, 'plotstd', 'none', @(x) any(validatestring(x,{'fill', 'lines', 'none'})));
 addParamValue(p, 'labels', {}, @(x) (length(x) == length(epochs)));
 addParamValue(p, 'colors', hsv(length(epochs)), @isnumeric);
 addParamValue(p, 'delaycorrection', 0, @isnumeric);
@@ -106,6 +121,7 @@ addParamValue(p, 'newfig', 1, @isnumeric);
 parse(p, epochs, channel, varargin{:})
 
 avgmode = p.Results.avgmode;
+plotstd = p.Results.plotstd;
 labels = p.Results.labels;
 colors = p.Results.colors;
 delaycorrection = p.Results.delaycorrection;
@@ -120,6 +136,17 @@ fontsize = p.Results.fontsize;
 linewidth = p.Results.linewidth;
 newfig = p.Results.newfig;
 
+% struct to cell
+for i = 1:length(epochs)
+    if isstruct(epochs{i})
+        newepochs = cell(1, length(epochs{i}));
+        for ii = 1:length(epochs{i})
+            newepochs{ii} = epochs{i}(ii);
+        end
+        epochs{i} = newepochs;
+    end
+end
+
 if strcmp(avgmode, 'auto')
     if length(epochs{1}) > 1, avgmode = 'within';
     else avgmode = 'across'; end
@@ -133,6 +160,7 @@ end
 
 % getting ERP data
 erps = [];
+stderrs = [];
 numepochs = [];
 for n = 1:length(epochs)
     conditionerp = [];
@@ -153,6 +181,12 @@ for n = 1:length(epochs)
     end
     erps = [erps; mean(conditionerp, 1)];
     numepochs = [numepochs, conditionnumepochs];
+    if size(conditionerp, 1) == 1
+        warning('Cannot calculate standard error on single sample');
+        stderrs = [stderrs; zeros(1, length(conditionerp))];
+    else
+        stderrs = [stderrs; std(conditionerp, 1) / sqrt(conditionnumepochs)];
+    end
 end
 
 if any(all(isnan(erps), 2)), error('Could not generate all ERPs'); end
@@ -173,13 +207,42 @@ end
 hold on;
 if smoothing, lsmoothing = 'on';
 else lsmoothing = 'off'; end
+
+% plotting ERP curves
 for i = 1:size(erps, 1)
     curves(i) = plot(x, erps(i,:), 'Color', colors(i,:), 'LineSmoothing', lsmoothing, 'LineWidth', linewidth);
 end
 
+% plotting standard error curves
+stdfills = [];
+stdlines1 = [];
+stdlines2 = [];
+if strcmp(plotstd, 'fill')
+    fillx = [x, fliplr(x)];
+    for i = 1:size(stderrs, 1)
+        filly = [erps(i,:) + stderrs(i,:), fliplr(erps(i,:) - stderrs(i,:))];
+        stdfills(i) = fill(fillx, filly, colors(i,:));
+        if smoothing, set(stdfills(i), 'facealpha', .25); end
+        set(stdfills(i), 'edgecolor', 'none');
+    end
+elseif strcmp(plotstd, 'lines')
+    for i = 1:size(stderrs, 1)
+        alpha = .75;
+        c = colors(i,:);
+        c = [c(1) + alpha * (1 - c(1)), c(2) + alpha * (1 - c(2)), c(3) + alpha * (1 - c(3))];
+        stdlines1(i) = plot(x, erps(i,:) + stderrs(i,:), 'Color', c, 'LineSmoothing', lsmoothing, 'LineWidth', linewidth);
+        stdlines2(i) = plot(x, erps(i,:) - stderrs(i,:), 'Color', c, 'LineSmoothing', lsmoothing, 'LineWidth', linewidth);
+    end
+end
+
 % getting data ranges
-ymax = max(max(erps));
-ymin = min(min(erps));
+if strcmp(plotstd, 'none')
+    ymax = max(max(erps));
+    ymin = min(min(erps));
+else
+    ymax = max(max(erps + stderrs));
+    ymin = min(min(erps - stderrs));
+end
 yrange = ymax - ymin;
 xrange = xmax - xmin;
 
@@ -327,7 +390,7 @@ end
 
 % setting figure drawing order, removing original axes, scaling figure to
 % fill window, setting font size
-set(gca, 'Children', [curves, xaxis, yaxis, ylabelp, ylabeln, xscale, xlabel, chanlabel, legend]);
+set(gca, 'Children', [curves, xaxis, yaxis, ylabelp, ylabeln, xscale, xlabel, chanlabel, legend, stdfills, stdlines1, stdlines2]);
 set(gca, 'Visible', 'off');
 set(findall(gcf,'type','text'), 'FontSize', fontsize);
 if newfig, set(gca, 'Position', [0 .05 1 .90]); end
