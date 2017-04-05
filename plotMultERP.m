@@ -1,5 +1,8 @@
 % h = plotMultERP(epochs, channel [, names, colors, delaycorrection, yticksize, vscale, xscalepos, legendpos, smoothing])
 %
+%       Plots ERPs from any number of given epoched EEG sets, for a single
+%       channel.
+%
 % In:
 %       epochs - 1-by-n cell containing 1-by-m cells of epoched EEG set(s)
 %                to average and plot. multiple sets are first averaged within,
@@ -43,6 +46,10 @@
 %                       Team PhyPA, Department of Biological Psychology and
 %                       Neuroergonomics, Berlin Institute of Technology
 
+% 2016-01-21 lrk
+%   - Improved automatic y scaling for values below 1
+%   - Changed the y scale label format to %+1.1d instead of %+d
+%   - Added a brief description of the file
 % 2015-11-06 First version
 
 function h = plotMultERP(epochs, channel, names, colors, delaycorrection, yticksize, vscale, xscalepos, legendpos, smoothing)
@@ -102,15 +109,19 @@ ytickwidth = (xlim / ylim) * xtickwidth;
 
 % drawing the y-axis
 if yticksize == 0
-    yticksize = ceil(yrange / 4);
+    if yrange < 2
+        yticksize = 10^floor(log10(yrange));
+    else
+        yticksize = ceil(yrange / 4);
+    end
 end
 yaxisx = [-ytickwidth ytickwidth 0         0          -ytickwidth ytickwidth];
 yaxisy = [yticksize   yticksize  yticksize -yticksize -yticksize  -yticksize];
 yaxis = line(yaxisx, yaxisy, 'Color', [0 0 0]);
 
 % drawing y-axis labels
-labelyp = text(0, double(yticksize * 1.25 * vscale), [num2str(yticksize, '%+d') '{\mu}V'], 'VerticalAlignment', 'cap', 'HorizontalAlignment', 'center');
-labelyn = text(0, double(yticksize * -1.25 * vscale), [num2str(-yticksize, '%+d') '{\mu}V'], 'VerticalAlignment', 'baseline', 'HorizontalAlignment', 'center');
+labelyp = text(0, double(yticksize * 1.25 * vscale), [num2str(yticksize, '%+1.1d') '{\mu}V'], 'VerticalAlignment', 'cap', 'HorizontalAlignment', 'center');
+labelyn = text(0, double(yticksize * -1.25 * vscale), [num2str(-yticksize, '%+1.1d') '{\mu}V'], 'VerticalAlignment', 'baseline', 'HorizontalAlignment', 'center');
 
 % drawing the x-axis
 xaxisx = [];
