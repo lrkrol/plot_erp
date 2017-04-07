@@ -275,7 +275,7 @@ if plotdiff
     
     % adding difference to ERP matrix
     erps = [erps; erps(1,:) - erps(2,:)];
-    stderrs = [stderrs; vars(1,:) / numepochs(1) + vars(2,:) / numepochs(2)];
+    stderrs = [stderrs; sqrt(vars(1,:) / numepochs(1) + vars(2,:) / numepochs(2))];
 end
 
 % getting x axis limits, applying delay correction
