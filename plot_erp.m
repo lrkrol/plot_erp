@@ -84,6 +84,9 @@
 %                       Berlin Institute of Technology
 %                       CC BY-SA 4.0
 
+% 2017-04-17 lrk
+%   - Fixed a bug where the mean ERP would be a single value if there was
+%     only one epoch in the dataset
 % 2017-04-04 lrk
 %   - Merged plotDiffERP into plotMultERP to form plot_erp,
 %     i.e. added difference wave option and statistics
@@ -202,7 +205,12 @@ for n = 1:length(epochs)
                 conditionnumepochs = conditionnumepochs + 1;
             else
                 % appending all epochs together
-                conditionerp = [conditionerp; squeeze(epochs{n}{m}.data(channelidx,:,:))'];
+                tempconditionerp = squeeze(epochs{n}{m}.data(channelidx,:,:))';
+                if iscolumn(tempconditionerp)
+                    % this happens when there is only one epoch in the dataset
+                    tempconditionerp = tempconditionerp';
+                end 
+                conditionerp = [conditionerp; tempconditionerp];
                 conditionnumepochs = conditionnumepochs + size(epochs{n}{m}.data, 3);
             end
         end
@@ -242,7 +250,7 @@ if permute > 0
         erps = erps(1:2, :);
         stderrs = stderrs(1:2, :);
     end    
-    w = waitbar(0, '', 'Name', 'Plot ERP');
+    w = waitbar(0, '', 'Name', 'plot_erp');
     for i = 1:size(erp1permute, 2)
         w = waitbar(i / size(erp1permute, 2), w, sprintf('Statistical testing: sample %d of %d', i, size(erp1permute, 2)));
         pvals = [pvals, permutationTest(erp1permute(:,i), erp2permute(:,i), permute)];
