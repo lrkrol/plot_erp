@@ -79,10 +79,9 @@
 %       >> plot_erp({ALLEEG(1:8:145), ALLEEG(8:8:152)}, 'Fz', ...
 %                   'plotdiff', 1, 'plotstd', 'fill')
 % 
-%                       Laurens R Krol, 2015
+%                       Copyright 2015-2017 Laurens R Krol
 %                       Team PhyPA, Biological Psychology and Neuroergonomics,
 %                       Berlin Institute of Technology
-%                       CC BY-SA 4.0
 
 % 2017-04-17 lrk
 %   - Fixed a bug where the mean ERP would be a single value if there was
@@ -112,6 +111,19 @@
 %   - Changed the y scale label format to %+1.1d instead of %+d
 %   - Added a brief description of the file
 % 2015-11-06 First version
+
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 function h = plot_erp(epochs, channel, varargin)
 
