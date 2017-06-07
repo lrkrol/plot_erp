@@ -5,8 +5,8 @@ Sample screenshots:
 
 Two ERPs plus their difference, standard error of the mean for all curves, and statistics highlighting significant differences in grey.
 
-![Screenshot](/plot_erp diff.png)
+![Screenshot](./plot_erp-diff.png)
 
 ERPs for eight groups of 19 datasets each with custom colour code, labels, and x scale indicator position.
 
-![Screenshot](/plot_erp mult.png)
+![Screenshot](./plot_erp-mult.png)
