@@ -6,21 +6,22 @@
 %
 % In:
 %       epochs - 1-by-n cell containing 1-by-m cells or structs of epoched 
-%                EEG set(s) to average and plot. the length of epochs determines 
-%                the amount of ERPs plotted, the length of epochs{1} the amount 
-%                of sets merged together and averaged for the first ERP curve.
+%                EEG set(s) to average and plot. the length of epochs 
+%                determines the amount of ERPs plotted, the length of 
+%                epochs{1} the amount of sets merged together and averaged
+%                for the first ERP curve.
 %       channel - label of channel to plot: note that EEG sets must have
 %                 labels for the channel positions.
 %
 % Optional (name-value pairs):
 %       avgmode - 'within', 'across', or 'auto'. whether to first average
 %                 within the given datasets before averaging them together,
-%                 or to first append all epochs across datasets and then take
-%                 their mean. default 'auto' selects 'within' when when
-%                 more than one dataset is provided for epochs{1}, 'across'
-%                 otherwise.
-%       plotstd - whether or not to plot standard errors of the mean for the 
-%                 two average curves. 
+%                 or to first append all epochs across datasets and then 
+%                 take their mean. default 'auto' selects 'within' when
+%                 when more than one dataset is provided for epochs{1}, 
+%                 'across' otherwise.
+%       plotstd - whether or not to plot standard errors of the mean for  
+%                 the two average curves. 
 %                 'fill' - plots a filled, semi-transparent area. note:
 %                          this interferes with MATLAB's ability to plot
 %                          smooth curves. when smoothing is off, these will
@@ -39,7 +40,7 @@
 %                 p-values will be plotted as grey bars behind the plot. 
 %                 this will discard all other ERPs. (default 0 disables)
 %       labels - cell of legend entries for the ERPs. (default: no legend)
-%       colors - array of colors for the ERPs. (default lines(length(epochs)))
+%       colors - array of colors for the ERPs. (default: lines colormap)
 %       delaycorrection - delay to visually correct for in seconds, i.e.
 %                         where the zero point should be on the x axis
 %       yticksize - scale of the y-axis, in microvolts. (default 0 attempts
@@ -64,9 +65,9 @@
 %                in pixels. (default [300 400 600 425])
 %       fontsize - font size of all text in the figure. (default 10)
 %       linewidth - line width for all graphs in the figure. (default 1)
-%       smoothing - whether or not to antialias the curves and use gradients
-%                   for the p-values. switch off if you wish to save the
-%                   figure in a vector format. (0|1, default 1)
+%       smoothing - whether or not to antialias the curves and use 
+%                   gradients for the p-values. switch off if you wish to 
+%                   save the figure in a vector format. (0|1, default 1)
 %       newfig - enable to plot figure in new window, switch off to plot
 %                in existing (sub)figure. (0|1, default 1)
 %
@@ -79,10 +80,12 @@
 %       >> plot_erp({ALLEEG(1:8:145), ALLEEG(8:8:152)}, 'Fz', ...
 %                   'plotdiff', 1, 'plotstd', 'fill')
 % 
-%                       Copyright 2015-2017 Laurens R Krol
-%                       Team PhyPA, Biological Psychology and Neuroergonomics,
-%                       Berlin Institute of Technology
+%                    Copyright 2015-2018 Laurens R Krol
+%                    Team PhyPA, Biological Psychology and Neuroergonomics,
+%                    Berlin Institute of Technology
 
+% 2018-07-16 lrk
+%   - Fixed issue with custom xticksize not spanning the entire epoch
 % 2017-04-17 lrk
 %   - Fixed a bug where the mean ERP would be a single value if there was
 %     only one epoch in the dataset
@@ -100,8 +103,8 @@
 %   - X-axis scale indicator can now be disabled
 %   - Fixed a placement bug when xscalepos was 2 or 6
 %   - Changed automatic y scaling to round to nearest decimal when below 1
-%   - Added avgmode, figpos, fontsize, linewidth, xticksize, newfig functions/
-%     parameters
+%   - Added avgmode, figpos, fontsize, linewidth, xticksize, newfig 
+%     functions/parameters
 % 2016-11-07 lrk
 %   - Added number of averaged epochs (n=...) to legend
 %   - Changed figure scaling to better fit window
@@ -369,13 +372,13 @@ else
     xticks = [0];
     
     i = 1;
-    while ~(0 - i * xticksize < xmin)
+    while ~(0 - i * xticksize < xmin - 1/epochs{1}{1}.srate)
         xticks = [xticks, -i * xticksize];
         i=i+1;
     end
     
     i = 1;
-    while ~(0 + i * xticksize > xmax)
+    while ~(0 + i * xticksize > xmax + 1/epochs{1}{1}.srate)
         xticks = [xticks, i * xticksize];
         i=i+1;
     end
