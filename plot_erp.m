@@ -89,7 +89,7 @@
 %     local functions
 %   - Fixed error when all time points were before zero
 %   - Fixed error when there was no place for the x scale indicator
-%   - Fixed scale drawing errors when time points didn't fit neatly 
+%   - Fixed issue where xticks were placed beyond time points
 % 2018-07-16 lrk
 %   - Fixed issue with custom xticksize not spanning the entire epoch
 % 2017-04-17 lrk
@@ -389,12 +389,13 @@ else
         i=i+1;
     end
     
-    % sorting, and removing values beyond EEG data that can occur when EEG
-    % data does not contain time point 0
     xticks = sort(xticks);
-    xticks(xticks < xmin - 1/epochs{1}{1}.srate) = [];
-    xticks(xticks > xmax + 1/epochs{1}{1}.srate) = [];
 end
+
+% removing values beyond EEG data that can occur when EEG data does not
+% contain time point 0, or when delaycorrection shifts stuff around
+xticks(xticks < xmin - 1/epochs{1}{1}.srate) = [];
+xticks(xticks > xmax + 1/epochs{1}{1}.srate) = [];
 
 if all(sign(xticks) == sign(xticks(1)))
     warning('no zero point on x axis: cannot draw y scale indicator');
