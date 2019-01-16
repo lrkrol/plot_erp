@@ -2,7 +2,7 @@
 %
 %       Plots ERPs from any number of given epoched EEG sets, for a single
 %       channel. Can optionally calculate and plot a difference wave,
-%       standard errors, and statistics.
+%       standard errors of the mean, and statistics.
 %
 % In:
 %       epochs - 1-by-n cell containing 1-by-m cells or structs of epoched 
@@ -80,10 +80,16 @@
 %       >> plot_erp({ALLEEG(1:8:145), ALLEEG(8:8:152)}, 'Fz', ...
 %                   'plotdiff', 1, 'plotstd', 'fill')
 % 
-%                    Copyright 2015-2018 Laurens R Krol
+%                    Copyright 2015-2019 Laurens R Krol
 %                    Team PhyPA, Biological Psychology and Neuroergonomics,
 %                    Berlin Institute of Technology
 
+% 2019-01-16 lrk
+%   - Removed permutationTest and maptorange dependencies by adding them as
+%     local functions
+%   - Fixed error when all time points were before zero
+%   - Fixed error when there was no place for the x scale indicator
+%   - Fixed scale drawing errors when time points didn't fit neatly 
 % 2018-07-16 lrk
 %   - Fixed issue with custom xticksize not spanning the entire epoch
 % 2017-04-17 lrk
@@ -260,7 +266,7 @@ if any(all(isnan(erps), 2)), error('Could not generate all ERPs'); end
 % calculating sample-by-sample statistics
 pvals = [];
 if permute > 0
-    if size(erps, 1) > 2,
+    if size(erps, 1) > 2
         warning('permute: Taking only first two ERPs, discarding the rest');
         erps = erps(1:2, :);
         stderrs = stderrs(1:2, :);
@@ -268,7 +274,7 @@ if permute > 0
     w = waitbar(0, '', 'Name', 'plot_erp');
     for i = 1:size(erp1permute, 2)
         w = waitbar(i / size(erp1permute, 2), w, sprintf('Statistical testing: sample %d of %d', i, size(erp1permute, 2)));
-        pvals = [pvals, permutationTest(erp1permute(:,i), erp2permute(:,i), permute)];
+        pvals = [pvals, permutationTest_local(erp1permute(:,i), erp2permute(:,i), permute)];
     end
     delete(w);
 end
@@ -383,7 +389,15 @@ else
         i=i+1;
     end
     
+    % sorting, and removing values beyond EEG data that can occur when EEG
+    % data does not contain time point 0
     xticks = sort(xticks);
+    xticks(xticks < xmin - 1/epochs{1}{1}.srate) = [];
+    xticks(xticks > xmax + 1/epochs{1}{1}.srate) = [];
+end
+
+if all(sign(xticks) == sign(xticks(1)))
+    warning('no zero point on x axis: cannot draw y scale indicator');
 end
 
 % setting length of the tick lines
@@ -409,7 +423,7 @@ ylabeln = text(0, double(yticksize * -1.25 * vscale), [num2str(-yticksize, ylabe
 % drawing the x-axis
 xaxisx = [];
 xaxisy = [];
-for t = 1:length(xticks);
+for t = 1:length(xticks)
     if t == length(xticks)
         xaxisx = [xaxisx,  xticks(t),  xticks(t)      ,  xticks(t)       ];
         xaxisy = [xaxisy,  0        ,  xticklinelength,  -xticklinelength];
@@ -422,28 +436,41 @@ xaxis = line(xaxisx, xaxisy, 'Color', [0 0 0]);
 
 % drawing x-axis scale and label
 if xscalepos > 0
+    noscale = false;
     xscaley = [-yticksize+xticklinelength, -yticksize-xticklinelength, -yticksize, -yticksize, -yticksize+xticklinelength, -yticksize-xticklinelength];
     xlabely = yticksize * -1.25 * vscale;
+    if xscalepos == 2 || xscalepos == 6
+        xtempticks = xticks(xticks < 0.0001);    % taking rounding errors into account
+        if isempty(xtempticks) || numel(xtempticks) < 3
+            warning('cannot produce x scale indicator at position %d; switching to 8', xscalepos);
+            xscalepos = 8;
+        else 
+            xpos1 = xtempticks(end-2);
+            xpos2 = xtempticks(end-1);
+            if xscalepos == 2
+                xscaley = xscaley * -1;
+                xlabely = xlabely * -1;
+            end
+        end
+    elseif xscalepos == 3 || xscalepos == 7
+        xtempticks = xticks(xticks > 0.0001);
+        if numel(xtempticks) < 3
+            warning('cannot produce x scale indicator at position %d; switching to 5', xscalepos);
+            xscalepos = 5;
+        else 
+            xpos1 = xtempticks(1);
+            xpos2 = xtempticks(2);
+            if xscalepos == 3
+                xscaley = xscaley * -1;
+                xlabely = xlabely * -1;
+            end
+        end
+    end
+    
     if xscalepos == 1 || xscalepos == 5
         xpos1 = xticks(1);
         xpos2 = xticks(2);
         if xscalepos == 1
-            xscaley = xscaley * -1;
-            xlabely = xlabely * -1;
-        end
-    elseif xscalepos == 2 || xscalepos == 6
-        xtempticks = xticks(xticks < 0.0001);    % taking rounding errors into account
-        xpos1 = xtempticks(end-2);
-        xpos2 = xtempticks(end-1);
-        if xscalepos == 2
-            xscaley = xscaley * -1;
-            xlabely = xlabely * -1;
-        end
-    elseif xscalepos == 3 || xscalepos == 7
-        xtempticks = xticks(xticks > 0.0001);
-        xpos1 = xtempticks(1);
-        xpos2 = xtempticks(2);
-        if xscalepos == 3
             xscaley = xscaley * -1;
             xlabely = xlabely * -1;
         end
@@ -455,6 +482,7 @@ if xscalepos > 0
             xlabely = xlabely * -1;
         end
     end
+    
     xsize = xpos2 - xpos1;
     xlabelx = xpos1 + xsize / 2;
     xscalex = [xpos1 xpos1 xpos1 xpos2 xpos2 xpos2];
@@ -513,7 +541,7 @@ if permute > 0
     pbarwidth = 1/epochs{1}{1}.srate;
     for i = 1:length(pvals)
         if pvals(i) >= 0.05, continue;
-        else color = maptorange(pvals(i), [.05 0], [1 .75], 'exp', 2); end
+        else color = maptorange_local(pvals(i), [.05 0], [1 .75], 'exp', 2); end
         
         patchx = [x(i)-pbarwidth/2, x(i)+pbarwidth/2, x(i)+pbarwidth/2, x(i)-pbarwidth/2];
 
@@ -538,5 +566,134 @@ set(gca, 'Children', [curves, xaxis, yaxis, ylabelp, ylabeln, xscale, xlabel, ch
 set(gca, 'Visible', 'off');
 set(findall(gcf,'type','text'), 'FontSize', fontsize);
 if newfig, set(gca, 'Position', [0 .05 1 .90]); end
+
+end
+
+
+
+
+% local version of maptorange (last update 2017-01-13), see
+% github.com/lrkrol/maptorange
+
+
+function targetvalue = maptorange_local(sourcevalue, sourcerange, targetrange, varargin)
+
+% parsing input
+p = inputParser;
+
+addRequired(p, 'sourcevalue', @isnumeric);
+addRequired(p, 'sourcerange', @(x) (all(numel(x) == 2) && isnumeric(x)));
+addRequired(p, 'targetrange', @(x) (all(numel(x) == 2) && isnumeric(x)));
+
+addParamValue(p, 'restrict', 1, @isnumeric);
+addParamValue(p, 'exp', 1, @isnumeric);
+
+parse(p, sourcevalue, sourcerange, targetrange, varargin{:})
+
+restrict = p.Results.restrict;
+exp = p.Results.exp;
+
+% mapping
+if numel(sourcevalue) > 1
+    % recursively calling this function
+    for i = 1:length(sourcevalue)
+        sourcevalue(i) = maptorange_local(sourcevalue(i), sourcerange, targetrange, varargin{:});
+        targetvalue = sourcevalue;
+    end
+else
+    % converting source value into a percentage
+    sourcespan = sourcerange(2) - sourcerange(1);
+    if sourcespan == 0, error('Zero-length source range'); end
+    valuescaled = (sourcevalue - sourcerange(1)) / sourcespan;
+    valuescaled = valuescaled^exp;
+
+    % taking given percentage of target range as target value
+    targetspan = targetrange(2) - targetrange(1);
+    targetvalue = targetrange(1) + (valuescaled * targetspan);
+
+    if restrict
+        % restricting value to the target range
+        if targetvalue < min(targetrange)
+            targetvalue = min(targetrange);
+        elseif targetvalue > max(targetrange)
+            targetvalue = max(targetrange);
+        end
+    end
+end
+
+end
+
+
+
+
+
+% local, reduced version of permutationTest (last update 2018-03-15), see
+% github.com/lrkrol/permutationTest for full version and documentation
+
+function [p, observeddifference, effectsize] = permutationTest_local(sample1, sample2, permutations, varargin)
+
+% parsing input
+p = inputParser;
+
+addRequired(p, 'sample1', @isnumeric);
+addRequired(p, 'sample2', @isnumeric);
+addRequired(p, 'permutations', @isnumeric);
+
+addParamValue(p, 'sidedness', 'both', @(x) any(validatestring(x,{'both', 'smaller', 'larger'})));
+addParamValue(p, 'exact' , 0, @isnumeric);
+
+parse(p, sample1, sample2, permutations, varargin{:})
+
+sample1 = p.Results.sample1;
+sample2 = p.Results.sample2;
+permutations = p.Results.permutations;
+sidedness = p.Results.sidedness;
+exact = p.Results.exact;
+
+% enforcing row vectors
+if iscolumn(sample1), sample1 = sample1'; end
+if iscolumn(sample2), sample2 = sample2'; end
+
+allobservations = [sample1, sample2];
+observeddifference = nanmean(sample1) - nanmean(sample2);
+effectsize = observeddifference / nanmean([std(sample1), std(sample2)]);
+
+w = warning('off', 'MATLAB:nchoosek:LargeCoefficient');
+if ~exact && permutations > nchoosek(numel(allobservations), numel(sample1))
+    warning(['the number of permutations (%d) is higher than the number of possible combinations (%d);\n' ...
+             'consider running an exact test using the ''exact'' argument'], ...
+             permutations, nchoosek(numel(allobservations), numel(sample1)));
+end
+warning(w);
+
+if exact
+    % getting all possible combinations
+    allcombinations = nchoosek(1:numel(allobservations), numel(sample1));
+    permutations = size(allcombinations, 1);
+end
+
+% running test
+randomdifferences = zeros(1, permutations);
+for n = 1:permutations    
+    % selecting either next combination, or random permutation
+    if exact, permutation = [allcombinations(n,:), setdiff(1:numel(allobservations), allcombinations(n,:))];
+    else, permutation = randperm(length(allobservations)); end
+    
+    % diving into two samples
+    randomSample1 = allobservations(permutation(1:length(sample1)));
+    randomSample2 = allobservations(permutation(length(sample1)+1:length(permutation)));
+    
+    % saving differences between the two samples
+    randomdifferences(n) = nanmean(randomSample1) - nanmean(randomSample2);
+end
+
+% getting probability of finding observed difference from random permutations
+if strcmp(sidedness, 'both')
+    p = (length(find(abs(randomdifferences) > abs(observeddifference)))+1) / (permutations+1);
+elseif strcmp(sidedness, 'smaller')
+    p = (length(find(randomdifferences < observeddifference))+1) / (permutations+1);
+elseif strcmp(sidedness, 'larger')
+    p = (length(find(randomdifferences > observeddifference))+1) / (permutations+1);
+end
 
 end
