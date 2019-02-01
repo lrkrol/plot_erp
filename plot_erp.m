@@ -84,6 +84,16 @@
 %                    Team PhyPA, Biological Psychology and Neuroergonomics,
 %                    Berlin Institute of Technology
 
+% 2019-02-01 lrk
+%   - Fixed issue where y axis and labels were drawn outside of the figure
+%     rather than not drawn at all after the previous fix
+%   - Suppresed MATLAB:hg:willberemoved LineSmoothing error for now
+%   - Now throws error rather than warning when 'plotdiff' requested on
+%     single ERP
+%   - Now throws error rather than warning when 'permute' or 'plotdiff'
+%     requested on more than two ERPs
+%   - Caught error when requesting 'plotstd' and 'plotdiff' when one ERP
+%     had only one sample
 % 2019-01-16 lrk
 %   - Removed permutationTest and maptorange dependencies by adding them as
 %     local functions
@@ -194,7 +204,7 @@ end
 % setting average mode
 if strcmp(avgmode, 'auto')
     if length(epochs{1}) > 1, avgmode = 'within';
-    else avgmode = 'across'; end
+    else, avgmode = 'across'; end
 end
 
 % setting default labels
@@ -250,7 +260,7 @@ for n = 1:length(epochs)
     
     % getting standard errors
     if size(conditionerp, 1) == 1
-        warning('plotstd: Cannot calculate standard error on single sample');
+        if ~strcmp(plotstd, 'none'), warning('plotstd: Cannot calculate standard error on single sample'); end
         stderrs = [stderrs; zeros(1, length(conditionerp))];
     else
         stderrs = [stderrs; std(conditionerp, 1) / sqrt(conditionnumepochs)];
@@ -267,9 +277,7 @@ if any(all(isnan(erps), 2)), error('Could not generate all ERPs'); end
 pvals = [];
 if permute > 0
     if size(erps, 1) > 2
-        warning('permute: Taking only first two ERPs, discarding the rest');
-        erps = erps(1:2, :);
-        stderrs = stderrs(1:2, :);
+        error('permute: Can only perform permutation test on two ERPs');
     end    
     w = waitbar(0, '', 'Name', 'plot_erp');
     for i = 1:size(erp1permute, 2)
@@ -282,12 +290,9 @@ end
 % calculating difference curve, checking/changing relevant settings
 if plotdiff
     if size(erps, 1) < 2
-        warning('plotdiff: Cannot generate difference for single ERP');
-    elseif size(erps, 1) > 2,
-        warning('plotdiff: Taking only first two ERPs, discarding the rest');
-        erps = erps(1:2, :);
-        stderrs = stderrs(1:2, :);
-        vars = vars(1:2, :);
+        error('plotdiff: Cannot generate difference for single ERP');
+    elseif size(erps, 1) > 2
+        error('plotdiff: Cannot generate difference for more than two ERPs');
     end
     
     if size(colors, 1) ~= 3
@@ -304,7 +309,14 @@ if plotdiff
     
     % adding difference to ERP matrix
     erps = [erps; erps(1,:) - erps(2,:)];
-    stderrs = [stderrs; sqrt(vars(1,:) / numepochs(1) + vars(2,:) / numepochs(2))];
+    
+    % getting standard error of the mean for the difference
+    if ~strcmp(plotstd, 'none') && size(vars, 1) == 1
+        % reverting to zeros when one of the ERPs had only one sample
+        stderrs = [stderrs; zeros(1, length(conditionerp))];
+    else
+        stderrs = [stderrs; sqrt(vars(1,:) / numepochs(1) + vars(2,:) / numepochs(2))];
+    end
 end
 
 % getting x axis limits, applying delay correction
@@ -319,9 +331,13 @@ if newfig, h = figure('units', 'pixels', 'Position', figpos, 'Color', 'w');
 else h = NaN; end
 
 if smoothing, lsmoothing = 'on';
-else lsmoothing = 'off'; end
+else, lsmoothing = 'off'; end
 
 hold on;
+
+% switching off warning:
+% 'The LineSmoothing property will be removed in a future release.'
+w = warning('off', 'MATLAB:hg:willberemoved');
 
 % plotting ERP curves
 for i = 1:size(erps, 1)
@@ -349,6 +365,9 @@ elseif strcmp(plotstd, 'lines')
         stdlines2(i) = plot(x, erps(i,:) - stderrs(i,:), 'Color', c, 'LineSmoothing', lsmoothing, 'LineWidth', linewidth);
     end
 end
+
+% resetting original warning settings
+warning(w);
 
 % getting data ranges
 if strcmp(plotstd, 'none')
@@ -397,30 +416,75 @@ end
 xticks(xticks < xmin - 1/epochs{1}{1}.srate) = [];
 xticks(xticks > xmax + 1/epochs{1}{1}.srate) = [];
 
-if all(sign(xticks) == sign(xticks(1)))
-    warning('no zero point on x axis: cannot draw y scale indicator');
-end
-
 % setting length of the tick lines
 xticklinelength = yrange / 50;
 yticklinelength = (xlim / ylim) * xticklinelength;
 
-% drawing the y-axis
+% setting yticksize
 if yticksize == 0
     yticksize = yrange/4;
     if yticksize > 1, yticksize = round(yticksize);
     else yticksize = roundn(yticksize, -1); end
 end
-yaxisx = [-yticklinelength,  yticklinelength,  0        ,  0         ,  -yticklinelength,  yticklinelength];
-yaxisy = [yticksize       ,  yticksize      ,  yticksize,  -yticksize,  -yticksize      ,  -yticksize     ];
-yaxis = line(yaxisx, yaxisy, 'Color', [0 0 0]);
 
-% drawing y-axis labels
-if yticksize < 1, ylabelformat = '%+1.1f';
-else ylabelformat = '%+d'; end
-ylabelp = text(0, double(yticksize * 1.25 * vscale), [num2str(yticksize, ylabelformat) '{\mu}V'], 'VerticalAlignment', 'cap', 'HorizontalAlignment', 'center', 'Color', [0 0 0]);
-ylabeln = text(0, double(yticksize * -1.25 * vscale), [num2str(-yticksize, ylabelformat) '{\mu}V'], 'VerticalAlignment', 'baseline', 'HorizontalAlignment', 'center', 'Color', [0 0 0]);
+if all(sign(xticks) == sign(xticks(1)))
+    warning('no zero point on x axis: cannot draw y scale indicator');
+    [yaxis, ylabelp, ylabeln, chanlabel, legend] = deal([]);
+else
+    % drawing the y-axis
+    yaxisx = [-yticklinelength,  yticklinelength,  0        ,  0         ,  -yticklinelength,  yticklinelength];
+    yaxisy = [yticksize       ,  yticksize      ,  yticksize,  -yticksize,  -yticksize      ,  -yticksize     ];
+    yaxis = line(yaxisx, yaxisy, 'Color', [0 0 0]);
 
+    % drawing y-axis labels
+    if yticksize < 1, ylabelformat = '%+1.1f';
+    else ylabelformat = '%+d'; end
+    ylabelp = text(0, double(yticksize * 1.25 * vscale), [num2str(yticksize, ylabelformat) '{\mu}V'], 'VerticalAlignment', 'cap', 'HorizontalAlignment', 'center', 'Color', [0 0 0]);
+    ylabeln = text(0, double(yticksize * -1.25 * vscale), [num2str(-yticksize, ylabelformat) '{\mu}V'], 'VerticalAlignment', 'baseline', 'HorizontalAlignment', 'center', 'Color', [0 0 0]);
+
+    % drawing channel name
+    chanlabel = text(0, double(yticksize * 1.4 * vscale^1.35), ['\bf' channel], 'HorizontalAlignment', 'center', 'Color', [0 0 0]);
+
+    % drawing legend
+    if legendpos == 0
+        legend = text(0, 0, '');
+    else
+        switch legendpos
+            case 1
+                legendx = xmin;
+                align = 'left';
+            case 2
+                legendx = 0;
+                align = 'right';
+            case 3
+                legendx = 0;
+                align = 'center';
+            case 4
+                legendx = 0;
+                align = 'left';
+            case 5
+                legendx = xmax;
+                align = 'right';
+        end
+
+        % making distinction between regular ERPs (which have a sample size) and the difference wave (which does not)
+        if plotdiff, numnondiffcurves = size(erps, 1) - 1;
+        else, numnondiffcurves = size(erps, 1); end
+
+        legendtext = [];
+        for i = 1:numnondiffcurves
+            legendtext = [legendtext, '\color[rgb]{' num2str(colors(i,:)) '}' labels{i} ' (n=' num2str(numepochs(i)) ')'];
+            if i < numnondiffcurves
+                legendtext = [legendtext char(10)]; % line break
+            end
+        end
+        if plotdiff
+            legendtext = [legendtext, char(10) '\color[rgb]{' num2str(colors(size(erps, 1),:)) '}' labels{size(erps, 1)}];
+        end
+        legend = text(double(legendx), double(yticksize * -1.35 * vscale^1.35), legendtext, 'HorizontalAlignment', align, 'VerticalAlignment', 'top');
+    end
+end
+    
 % drawing the x-axis
 xaxisx = [];
 xaxisy = [];
@@ -494,55 +558,13 @@ else
     xlabel = text();
 end
 
-% drawing channel name
-chanlabel = text(0, double(yticksize * 1.4 * vscale^1.35), ['\bf' channel], 'HorizontalAlignment', 'center', 'Color', [0 0 0]);
-
-% drawing legend
-if legendpos == 0
-    legend = text(0, 0, '');
-else
-    switch legendpos
-        case 1
-            legendx = xmin;
-            align = 'left';
-        case 2
-            legendx = 0;
-            align = 'right';
-        case 3
-            legendx = 0;
-            align = 'center';
-        case 4
-            legendx = 0;
-            align = 'left';
-        case 5
-            legendx = xmax;
-            align = 'right';
-    end
-    
-    % making distinction between regular ERPs (which have a sample size) and the difference wave (which does not)
-    if plotdiff, numnondiffcurves = size(erps, 1) - 1;
-    else numnondiffcurves = size(erps, 1); end
-    
-    legendtext = [];
-    for i = 1:numnondiffcurves
-        legendtext = [legendtext, '\color[rgb]{' num2str(colors(i,:)) '}' labels{i} ' (n=' num2str(numepochs(i)) ')'];
-        if i < numnondiffcurves
-            legendtext = [legendtext char(10)]; % line break
-        end
-    end
-    if plotdiff
-        legendtext = [legendtext, char(10) '\color[rgb]{' num2str(colors(size(erps, 1),:)) '}' labels{size(erps, 1)}];
-    end
-    legend = text(double(legendx), double(yticksize * -1.35 * vscale^1.35), legendtext, 'HorizontalAlignment', align, 'VerticalAlignment', 'top');
-end
-
 % visualising p-values
 pbars = [];
 if permute > 0
     pbarwidth = 1/epochs{1}{1}.srate;
     for i = 1:length(pvals)
         if pvals(i) >= 0.05, continue;
-        else color = maptorange_local(pvals(i), [.05 0], [1 .75], 'exp', 2); end
+        else, color = maptorange_local(pvals(i), [.05 0], [1 .75], 'exp', 2); end
         
         patchx = [x(i)-pbarwidth/2, x(i)+pbarwidth/2, x(i)+pbarwidth/2, x(i)-pbarwidth/2];
 
