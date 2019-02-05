@@ -84,6 +84,8 @@
 %                    Team PhyPA, Biological Psychology and Neuroergonomics,
 %                    Berlin Institute of Technology
 
+% 2019-02-05 lrk
+%   - Switched to normalising std and var by n-1 rather than n
 % 2019-02-01 lrk
 %   - Fixed issue where y axis and labels were drawn outside of the figure
 %     rather than not drawn at all after the previous fix
@@ -263,10 +265,10 @@ for n = 1:length(epochs)
         if ~strcmp(plotstd, 'none'), warning('plotstd: Cannot calculate standard error on single sample'); end
         stderrs = [stderrs; zeros(1, length(conditionerp))];
     else
-        stderrs = [stderrs; std(conditionerp, 1) / sqrt(conditionnumepochs)];
+        stderrs = [stderrs; std(conditionerp, 0, 1) / sqrt(conditionnumepochs)];
         if plotdiff
             % standard error of the difference of the mean uses variance instead
-            vars = [vars; var(conditionerp, 1)];
+            vars = [vars; var(conditionerp, 0, 1)];
         end
     end
 end
