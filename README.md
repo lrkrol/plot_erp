@@ -54,3 +54,9 @@ plot_erp({{p1c1, p2c1}, p3c1}, 'Fz');
 ```
 
 will compare the mean of participant one and two to that of participant three. Note that by default, whether or not to first average within datasets before averaging them together, or to average across all epochs, is determined by the number of datasets for the first trace. Here, _n_ would be 2 and 1, respectively. This behaviour can be changed by setting `avgmode`.
+
+The script does not work directly with EEGLAB's study format. If, however, all study datasets are saved in memory, and they are ordered consistently, you can use the indices in ALLEEG to refer to specific conditions. For example, a study of 20 participants with 8 conditions each, all loaded in the same order as separate datasets, will have 160 datasets in ALLEEG. To plot the first three conditions against each other, you can use:
+
+```matlab
+plot_erp({ALLEEG(1:8:160), ALLEEG(2:8:160), ALLEEG(3:8:160)}, 'Cz');
+```
